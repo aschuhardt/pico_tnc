@@ -1,5 +1,6 @@
 /*
-Copyright (c) 2021, Kazuhisa Yokota, JN1DFF
+Copyright (c) 2021, Kazuhisa Yokota, JN1DFF & Addison Schuhardt, W0ADY
+
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +36,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "bell202.h"
 #include "ax25.h"
 #include "usb_output.h"
-#include "tty.h"
 #include "digipeat.h"
 #include "kiss.h"
 
@@ -47,103 +47,103 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 static uint8_t str[STR_LEN];
 
-static void display_packet(tty_t *ttyp, tnc_t *tp)
-{
-    int i;
-    int in_addr = 1;
-    int len = tp->data_cnt;
-    uint8_t *data = tp->data;
-    int size;
+// static void display_packet(tnc_t *tp)
+// {
+//     int i;
+//     int in_addr = 1;
+//     int len = tp->data_cnt;
+//     uint8_t *data = tp->data;
+//     int size;
 
-#if PORT_N > 1
-    size = snprintf(str, STR_LEN, "(%d) %d:%d:", tnc_time(), tp->port, tp->pkt_cnt);
-    tty_write(ttyp, str, size);
-#endif
+// #if PORT_N > 1
+//     size = snprintf(str, STR_LEN, "(%d) %d:%d:", tnc_time(), tp->port, tp->pkt_cnt);
+//     tty_write(ttyp, str, size);
+// #endif
 
-    for (i = 0; i < len - 2; i++) {
-	    int c;
+//     for (i = 0; i < len - 2; i++) {
+// 	    int c;
 
-        if (i < 7) c = data[i + 7];       // src addr
-        else if (i < 14) c = data[i - 7]; // dst addr
-        else c = data[i];
+//         if (i < 7) c = data[i + 7];       // src addr
+//         else if (i < 14) c = data[i - 7]; // dst addr
+//         else c = data[i];
 
-	    if (in_addr) {
-	        int d = c >> 1;
+// 	    if (in_addr) {
+// 	        int d = c >> 1;
 
-	        if (i % 7 == 6) { // SSID
+// 	        if (i % 7 == 6) { // SSID
 
-	            if (i >= 7) in_addr = !(data[i] & 1);  // check address extension bit
+// 	            if (i >= 7) in_addr = !(data[i] & 1);  // check address extension bit
 
-		        if (d & 0x0f) { // SSID
-                    size = snprintf(str, STR_LEN, "-%d", d & 0x0f);
-                    tty_write(ttyp, str, size);
-                }
-                if (i >= 14 && (c & 0x80)) tty_write_char(ttyp, '*'); // H bit
-		        if (i == 6) tty_write_char(ttyp, '>');
-                else tty_write_char(ttyp, in_addr ? ',' : ':');
+// 		        if (d & 0x0f) { // SSID
+//                     size = snprintf(str, STR_LEN, "-%d", d & 0x0f);
+//                     tty_write(ttyp, str, size);
+//                 }
+//                 if (i >= 14 && (c & 0x80)) tty_write_char(ttyp, '*'); // H bit
+// 		        if (i == 6) tty_write_char(ttyp, '>');
+//                 else tty_write_char(ttyp, in_addr ? ',' : ':');
 
-	        } else { // CALLSIGN
+// 	        } else { // CALLSIGN
 
-		        if (d >= '0' && d <= '9') tty_write_char(ttyp, d);
-		        else if (d >= 'A' && d <= 'Z') tty_write_char(ttyp, d);
-		        else if (d != ' ') {
-                    size = snprintf(str, STR_LEN, "<%02x>", d);
-                    tty_write(ttyp, str, size);
-                }
+// 		        if (d >= '0' && d <= '9') tty_write_char(ttyp, d);
+// 		        else if (d >= 'A' && d <= 'Z') tty_write_char(ttyp, d);
+// 		        else if (d != ' ') {
+//                     size = snprintf(str, STR_LEN, "<%02x>", d);
+//                     tty_write(ttyp, str, size);
+//                 }
 
-	        }
-	    } else {
-	        if (c >= ' ' && c <= '~') tty_write_char(ttyp, c);
-	        else {
-                size = snprintf(str, STR_LEN, "<%02x>", c);
-                tty_write(ttyp, str, size);
-            }
-	    }
-    }
-#if 1
-    tty_write_str(ttyp, "\r\n");
-#else
-    size = snprintf(str, STR_LEN, "<%02x%02x>\r\n", data[len-1], data[len-2]);
-    tty_write(ttyp, str, size);
-#endif
-}
+// 	        }
+// 	    } else {
+// 	        if (c >= ' ' && c <= '~') tty_write_char(ttyp, c);
+// 	        else {
+//                 size = snprintf(str, STR_LEN, "<%02x>", c);
+//                 tty_write(ttyp, str, size);
+//             }
+// 	    }
+//     }
+// #if 1
+//     tty_write_str(ttyp, "\r\n");
+// #else
+//     size = snprintf(str, STR_LEN, "<%02x%02x>\r\n", data[len-1], data[len-2]);
+//     tty_write(ttyp, str, size);
+// #endif
+// }
 
-static void output_packet(tnc_t *tp)
-{
-    int len = tp->data_cnt;
-    uint8_t *data = tp->data;
+// static void output_packet(tnc_t *tp)
+// {
+//     int len = tp->data_cnt;
+//     uint8_t *data = tp->data;
 
-    if (len < MIN_LEN) return;
+//     if (len < MIN_LEN) return;
 
-    // FCS check
-    if (ax25_fcs(0, data, len) != FCS_OK) return;
+//     // FCS check
+//     if (ax25_fcs(0, data, len) != FCS_OK) return;
 
-    // count received packet
-    ++tp->pkt_cnt;
+//     // count received packet
+//     ++tp->pkt_cnt;
 
-    // digipeat
-    if (param.digi) digipeat(tp);
+//     // digipeat
+//     if (param.digi) digipeat(tp);
 
-    for (int i = TTY_USB; i <= TTY_UART0; i++) {
-        tty_t *ttyp = &tty[i];
+//     for (int i = TTY_USB; i <= TTY_UART0; i++) {
+//         tty_t *ttyp = &tty[i];
 
-        if (ttyp->kiss_mode) kiss_output(ttyp, tp); // kiss mode
-        else {
+//         if (ttyp->kiss_mode) kiss_output(ttyp, tp); // kiss mode
+//         else {
 
-            // TNC MONitor command
-            switch (param.mon) {
-                case MON_ALL:
-                    display_packet(ttyp, tp);
-                    break;
+//             // TNC MONitor command
+//             switch (param.mon) {
+//                 case MON_ALL:
+//                     display_packet(ttyp, tp);
+//                     break;
 
-                case MON_ME:
-                    if (ax25_callcmp(&param.mycall, &data[0])) { // dst addr check
-                        display_packet(ttyp, tp);
-                    }
-            }
-        }
-    }
-}
+//                 case MON_ME:
+//                     if (ax25_callcmp(&param.mycall, &data[0])) { // dst addr check
+//                         display_packet(ttyp, tp);
+//                     }
+//             }
+//         }
+//     }
+// }
 
 #define AX25_FLAG 0x7e
 
@@ -164,7 +164,7 @@ static void decode_bit(tnc_t *tp, int bit)
 
         case DATA:
 	    if ((tp->flag & 0x3f) == 0x3f) { // AX.25 flag, end of packet, six continuous "1" bits
-	        output_packet(tp);
+	        // output_packet(tp);
 	        tp->state = FLAG;
 	        break;
 	    }

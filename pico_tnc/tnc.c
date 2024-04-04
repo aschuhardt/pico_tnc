@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2021, JN1DFF
+Copyright (c) 2021, JN1DFF & Addison Schuhardt, W0ADY
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -26,28 +26,108 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include <stdio.h>
+#include <ctype.h>
+#include <string.h>
 
 #include "tnc.h"
 #include "ax25.h"
-#include "flash.h"
 
 uint32_t __tnc_time;
 
 tnc_t tnc[PORT_N];
 
+enum STATE_CALLSIGN {
+    CALL = 0,
+    HYPHEN,
+    SSID1,
+    SSID2,
+    SPACE,
+    END,
+};
+
 param_t param = {
     .mycall = { 0, 0, },
     .unproto = { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, },
     .myalias = { 0, 0 },
-    .btext = "",
-    .txdelay = 100,
-    .echo = 1,
-    .gps = 0,
-    .trace = 0,
-    .mon = 0,
-    .digi = 0,
-    .beacon = 0,
+    .btext = ""
 };
+
+static uint8_t *read_call(uint8_t *buf, callsign_t *c)
+{
+    callsign_t cs;
+    int i, j;
+    int state = CALL;
+    bool error = false;
+
+    cs.call[0] = '\0';
+    for (i = 1; i < 6; i++) cs.call[i] = ' ';
+    cs.ssid = 0;
+
+    // callsign
+    j = 0;
+    for (i = 0; buf[i] && state != END; i++) {
+        int ch = buf[i];
+
+        switch (state) {
+
+            case CALL:
+                if (isalnum(ch)) {
+                    cs.call[j++] = toupper(ch);
+                    if (j >= 6) state = HYPHEN;
+                    break;
+                } else if (ch == '-') {
+                    state = SSID1;
+                    break;
+                } else if (ch != ' ') {
+                    error = true;
+                }
+                state = END;
+                break;
+
+            case HYPHEN:
+                if (ch == '-') {
+                    state = SSID1;
+                    break;
+                }
+                if (ch != ' ') {
+                    error = true;
+                }
+                state = END;
+                break;
+
+            case SSID1:
+                if (isdigit(ch)) {
+                    cs.ssid = ch - '0';
+                    state = SSID2;
+                    break;
+                }
+                error = true;
+                state = END;
+                break;
+
+            case SSID2:
+                if (isdigit(ch)) {
+                    cs.ssid *= 10;
+                    cs.ssid += ch - '0';
+                    state = SPACE;
+                    break;
+                }
+                /* FALLTHROUGH */
+
+            case SPACE:
+                if (ch != ' ') error = true;
+                state = END;
+        }
+    }
+
+    if (cs.ssid > 15) error = true;
+
+    if (error) return NULL;
+
+    memcpy(c, &cs, sizeof(cs));
+
+    return &buf[i];
+}
 
 void tnc_init(void)
 {
@@ -63,12 +143,6 @@ void tnc_init(void)
 
     lpf_an = filter_coeff(&flt_lpf);
 
-#if 0
-    printf("LPF coeffient\n");
-    for (int i = 0; i < flt_lpf.size; i++) {
-        printf("%d\n", lpf_an[i]);
-    }
-#endif
     // BPF
     static const filter_param_t flt_bpf = {
         .size = FIR_BPF_N,
@@ -76,13 +150,9 @@ void tnc_init(void)
         .pass_freq = 900,
         .cutoff_freq = 2500,
     };
+
     bpf_an = filter_coeff(&flt_bpf);
-#if 0
-    printf("BPF coeffient\n");
-    for (int i = 0; i < flt_bpf.size; i++) {
-        printf("%d\n", bpf_an[i]);
-    }
-#endif
+
     // PORT initialization
     for (int i = 0; i < PORT_N; i++) {
         tnc_t *tp = &tnc[i];
@@ -98,23 +168,31 @@ void tnc_init(void)
         tp->send_state = SP_IDLE;
 
         tp->cdt = 0;
-        tp->kiss_txdelay = 50;
-        tp->kiss_p = 63;
-        tp->kiss_slottime = 10;
-        tp->kiss_fullduplex = 0;
-
-        // calibrate
-        tp->do_nrzi = true;
     }
+}
 
-    //printf("%d ports support\n", PORT_N);
-    //printf("DELAYED_N = %d\n", DELAYED_N);
+bool set_btext(uint8_t * buf, int len)
+{
+    len = MIN(len, BTEXT_LEN);
+    memcpy(&param.btext[0], buf, len);
+    param.btext[len] = '\0';
+}
 
-    // read flash
-    flash_read(&param, sizeof(param));
+void clear_unproto() {
+    for (int i = 0; i < UNPROTO_N; ++i)
+        param.unproto[i].call[0] = '\0';
+}
 
-    // set kiss txdelay
-    if (param.txdelay > 0) {
-        tnc[0].kiss_txdelay = param.txdelay * 2 / 3;
-    }
+bool set_unproto(int index, uint8_t * buf, int len) {
+    if (buf == NULL || buf[0] == '\0')
+        return false;
+
+    return read_call(buf, &param.unproto[index]) != NULL;
+}
+
+bool set_mycall(uint8_t * buf, int len) {
+    if (buf == NULL || buf[0] == '\0')
+        return false;
+
+    return read_call(buf, &param.mycall) != NULL;
 }

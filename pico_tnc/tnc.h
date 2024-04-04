@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2021 JN1DFF
+ * Copyright (c) 2021 JN1DFF & Addison Schuhardt, W0ADY
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -48,7 +48,6 @@
 #define BEACON_PORT 0
 
 #define KISS_PACKET_LEN 1024                // kiss packet length
-#define TTY_N 3                             // number of serial
 #define CMD_BUF_LEN 255
 
 
@@ -63,8 +62,6 @@ typedef struct {
   int high_i;
   int high_q;
 } values_t;
-
-typedef struct TTY tty_t;
 
 typedef struct TNC {
     uint8_t port;
@@ -113,14 +110,6 @@ typedef struct TNC {
     filter_t lpf;
     filter_t bpf;
 
-    // send
-
-    // kiss parameter
-    uint8_t kiss_txdelay;
-    uint8_t kiss_p;
-    uint8_t kiss_slottime;
-    uint8_t kiss_fullduplex;
-
     // dac queue
     queue_t dac_queue;
 
@@ -150,49 +139,24 @@ typedef struct TNC {
     int send_len;
     int send_state;
     int send_data;
-
-    // field for test packet
-    int test_state;
-    uint8_t const *ptp;
-    uint8_t const *packet;
-    uint16_t packet_len;
-    int wait_time;
-
-    // calibrate
-    uint8_t cal_data;
-    bool do_nrzi;
-    uint32_t cal_time;
-    tty_t *ttyp;
-
 } tnc_t;
 
 extern tnc_t tnc[];
 extern uint32_t __tnc_time;
 
 void tnc_init(void);
+bool set_btext(uint8_t* buf, int len);
+void clear_unproto();
+bool set_unproto(int index, uint8_t* buf, int len);
+bool set_mycall(uint8_t* buf, int len);
 
-inline uint32_t tnc_time(void)
+static inline uint32_t tnc_time(void)
 {
     return __tnc_time;
 }
 
-// TNC command
-enum MONITOR {
-    MON_ALL = 0,
-    MON_ME,
-    MON_OFF,
-};
-
-// GPS
-enum GPS_SENTENCE {
-    GPGGA = 0,
-    GPGLL,
-    GPRMC,
-};
-
 #define UNPROTO_N 4
 #define BTEXT_LEN 100
-
 
 // TNC parameter
 typedef struct TNC_PARAM {
@@ -200,49 +164,9 @@ typedef struct TNC_PARAM {
     callsign_t myalias;
     callsign_t unproto[UNPROTO_N];
     uint8_t btext[BTEXT_LEN + 1];
-    uint8_t txdelay;
-    uint8_t gps;
-    uint8_t mon;
-    uint8_t digi;
-    uint8_t beacon;
-    uint8_t trace;
-    uint8_t echo;
 } param_t;
 
 extern param_t param;
-
-// tty
-
-enum TTY_MODE {
-    TTY_TERMINAL = 0,
-    TTY_GPS,
-};
-
-enum TTY_SERIAL {
-    TTY_USB = 0,
-    TTY_UART0,
-    TTY_UART1,
-};
-
-typedef struct TTY {
-    uint8_t kiss_buf[KISS_PACKET_LEN];
-    uint8_t cmd_buf[CMD_BUF_LEN + 1];
-    int kiss_idx;
-    int cmd_idx;
-
-    uint8_t num;        // index of tty[]
-
-    uint8_t tty_mode;   // terminal or GPS
-    uint8_t tty_serial; // USB, UART0, UART1
-
-    uint8_t kiss_mode;  // kiss mode
-    uint8_t kiss_state; // kiss state
-    uint32_t kiss_timeout; // kiss timer
-
-    tnc_t *tp;          // input/output port No.
-} tty_t;
-
-extern tty_t tty[];
 
 // send process state
 enum SEND_STATE {
@@ -255,6 +179,4 @@ enum SEND_STATE {
     SP_DATA_START,
     SP_DATA,
     SP_ERROR,
-    SP_CALIBRATE,
-    SP_CALIBRATE_OFF,
 };

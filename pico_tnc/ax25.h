@@ -1,5 +1,6 @@
 /*
-Copyright (c) 2021, Kazuhisa Yokota, JN1DFF
+Copyright (c) 2021, Kazuhisa Yokota, JN1DFF & Addison Schuhardt, W0ADY
+
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +36,7 @@ typedef struct CALLSIGN {
     uint8_t ssid;
 } callsign_t;
 
-int ax25_fcs(uint32_t crc, const uint8_t const *data, int size);
+int ax25_fcs(uint32_t crc, const uint8_t *data, int size);
 bool ax25_callcmp(callsign_t *c, uint8_t *addr);
 void ax25_mkax25addr(uint8_t *addr, callsign_t *c);
 bool ax25_ui(uint8_t *packet, int len);
