@@ -129,7 +129,7 @@ static uint8_t *read_call(uint8_t *buf, callsign_t *c)
     return &buf[i];
 }
 
-void tnc_init(void)
+void tnc_init(void (*ptt_on)(void), void (*ptt_off)(void))
 {
     // filter initialization
     // LPF
@@ -166,6 +166,8 @@ void tnc_init(void)
         // send queue
         queue_init(&tp->send_queue, sizeof(uint8_t), SEND_QUEUE_LEN);
         tp->send_state = SP_IDLE;
+        tp->ptt_on = ptt_on;
+        tp->ptt_off = ptt_off;
 
         tp->cdt = 0;
     }

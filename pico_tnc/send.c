@@ -28,6 +28,7 @@
 
 #include "wave_table.h"
 
+
 #define SLOTTIME 10
 #define TXDELAY 50
 #define DELAY_COEF 63
@@ -36,12 +37,6 @@ static const int pwm_pins[] = {
     10, // port 0
     8,  // port 1
     6,  // port 2
-};
-
-static const int ptt_pins[] = {
-    11, // port 0
-    9,  // port 1
-    7,  // port 2
 };
 
 #define LED_PIN PICO_DEFAULT_LED_PIN
@@ -62,7 +57,7 @@ static void __isr dma_handler(void)
             if (queue_try_remove(&tp->dac_queue, &addr)) {
                 dma_channel_set_read_addr(tp->ctrl_chan, addr, true);
             } else {
-                gpio_put(tp->ptt_pin, 0); // PTT off
+                tp->ptt_off();
                 tp->busy = false;
             }
         }
@@ -74,7 +69,7 @@ static void __isr dma_handler(void)
 static void send_start(tnc_t *tp)
 {
     if (!tp->busy) {
-        gpio_put(tp->ptt_pin, 1); // PTT on
+        tp->ptt_on();
         tp->busy = true;
         dma_channel_set_read_addr(tp->data_chan, NULL, true); // trigger NULL interrupt
     }
@@ -193,11 +188,7 @@ void send_init(void)
         // queue
         queue_init(&tp->dac_queue, sizeof(uint32_t *), DAC_QUEUE_LEN);
 
-        // PTT pins
-        tp->ptt_pin = ptt_pins[i];
-        gpio_init(tp->ptt_pin);
-        gpio_set_dir(tp->ptt_pin, true); // output
-        gpio_put(tp->ptt_pin, 0);
+        tp->ptt_off();
 
         // PIO
         // find free state machine

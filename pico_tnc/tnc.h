@@ -113,8 +113,7 @@ typedef struct TNC {
     // dac queue
     queue_t dac_queue;
 
-    // DAC, PTT pin
-    uint8_t ptt_pin;
+    // DAC pin
     uint8_t pwm_pin;
     uint8_t pwm_slice;
 
@@ -139,12 +138,15 @@ typedef struct TNC {
     int send_len;
     int send_state;
     int send_data;
+
+    void (*ptt_on)(void);
+    void (*ptt_off)(void);
 } tnc_t;
 
 extern tnc_t tnc[];
 extern uint32_t __tnc_time;
 
-void tnc_init(void);
+void tnc_init(void (*ptt_on)(void), void (*ptt_off)(void));
 bool set_btext(uint8_t* buf, int len);
 void clear_unproto();
 bool set_unproto(int index, uint8_t* buf, int len);
